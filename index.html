@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>수리나무학원 스마트 학습</title>
+    <style>
+        :root { --main-green: #2F855A; --light-green: #48BB78; --bg-color: #F0FDF4; --text-dark: #2D3748; }
+        body { font-family: 'Pretendard', sans-serif; text-align: center; background-color: var(--bg-color); margin: 0; padding: 15px; color: var(--text-dark); }
+        #app-container { max-width: 480px; margin: 0 auto; background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); overflow: hidden; padding-bottom: 20px;}
+        .app-header { background: linear-gradient(135deg, var(--main-green), var(--light-green)); color: white; padding: 20px; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; margin-bottom: 15px;}
+        .nav-container { padding: 0 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 20px; }
+        .menu-btn { padding: 10px 2px; cursor: pointer; border: none; border-radius: 10px; background-color: #EDF2F7; color: #4A5568; font-weight: bold; font-size: 12px; }
+        .menu-btn.active { background-color: var(--main-green); color: white; }
+        .section { display: none; padding: 0 15px; animation: fadeIn 0.3s; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .play-btn { background: #E6FFFA; border: 2px solid #81E6D9; color: #285E61; padding: 8px 15px; border-radius: 50px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        #word-display { font-size: 32px; font-weight: 900; color: var(--main-green); margin: 15px 0; }
+        .option-btn { background: white; border: 2px solid #E2E8F0; padding: 14px; border-radius: 12px; font-size: 15px; cursor: pointer; text-align: left; font-weight: bold; margin-bottom: 8px; width: 100%; }
+        .correct-btn { background-color: var(--light-green) !important; color: white !important; }
+        .korean-meaning { font-size: 15px; color: #C53030; font-weight: bold; margin-bottom: 12px; background: #FFF5F5; padding: 12px; border-radius: 10px; border-left: 5px solid #F56565; text-align: left; line-height: 1.4; }
+        #answer-area, #answer-area-t { min-height: 100px; border: 2px dashed var(--main-green); background-color: #F9FAFB; margin-bottom: 10px; padding: 12px; border-radius: 15px; display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; align-content: center; }
+        #scrambled-words, #scrambled-words-t { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-bottom: 15px; min-height: 60px; }
+        .word-block { background: white; border: 2px solid #CBD5E0; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .status-text { font-size: 12px; color: #718096; background: #EDF2F7; padding: 4px 10px; border-radius: 15px; font-weight: bold; display: inline-block; margin-bottom: 10px; }
+        .history-card { background: white; border: 1px solid #E2E8F0; border-radius: 10px; padding: 12px; margin-bottom: 8px; text-align: left; position: relative; }
+        .stamp { position: absolute; right: 10px; top: 10px; color: #E53E3E; border: 2px solid #E53E3E; padding: 2px 5px; border-radius: 5px; transform: rotate(-10deg); font-weight: 900; font-size: 12px; }
+        input { padding: 6px; border-radius: 6px; border: 1px solid #DDD; width: 50px; text-align: center; }
+        .go-btn { padding: 6px 12px; background: var(--text-dark); color: white; border: none; border-radius: 6px; cursor: pointer; }
+    </style>
+</head>
+<body>
+<div id="app-container">
+    <div class="app-header"><h1>🌳 수리나무 스마트 학습</h1><p style="margin-top:5px; font-size:13px; opacity:0.9;">교과서 1과 & 2과 완전판</p></div>
+    <div class="nav-container">
+        <button class="menu-btn active" onclick="showSection('word-section', this)">1. 어휘</button>
+        <button class="menu-btn" onclick="showSection('dialogue-section', this)">2. 대화문</button>
+        <button class="menu-btn" onclick="showSection('textbook-section', this)">3. 학교본문</button>
+        <button class="menu-btn" onclick="showSection('history-section', this); renderHistory();">4. 기록</button>
+    </div>
+    <div id="word-section" class="section active"><div class="status-text" id="word-status"></div><div id="word-display"></div><div id="word-options"></div></div>
+    <div id="dialogue-section" class="section"><div class="status-text" id="dialogue-status"></div><div id="dialogue-ko" class="korean-meaning"></div><div id="answer-area"></div><div id="scrambled-words"></div></div>
+    <div id="textbook-section" class="section">
+        <div style="margin-bottom:10px;">문장번호 이동: <input type="number" id="textbookJump" value="1"> <button class="go-btn" onclick="jumpTo('textbook')">GO</button></div>
+        <div class="status-text" id="textbook-status"></div><div id="textbook-ko" class="korean-meaning"></div><div id="answer-area-t"></div><div id="scrambled-words-t"></div>
+    </div>
+    <div id="history-section" class="section"><h3 style="font-size:18px;">📅 오늘 나의 학습 도장</h3><div id="history-list"></div></div>
+</div>
+
+<script>
+    // --- 1. 어휘 데이터 (전체) ---
+    const wordList = [
+        {en:"upset", ko:"속상한, 화가 난"}, {en:"argument", ko:"말다툼"}, {en:"long face", ko:"시무룩한[우울한] 얼굴"}, {en:"mean", ko:"심술궂은, 의미하다"}, {en:"note", ko:"편지, 쪽지"}, {en:"text message", ko:"문자 메시지"}, {en:"concentrate", ko:"집중하다"}, {en:"finally", ko:"마침내, 결국"}, {en:"dive", ko:"다이빙하다"}, {en:"actually", ko:"사실은, 실은"}, {en:"scared", ko:"무서워하는"}, {en:"hair style", ko:"헤어스타일"}, {en:"somewhere", ko:"어딘가로"}, {en:"trouble", ko:"문제, 골칫거리"}, {en:"direct", ko:"솔직한, 단도직입의"}, {en:"strongly", ko:"강하게"}, {en:"consider", ko:"고려하다"}, {en:"feeling", ko:"감정, 기분"}, {en:"teen", ko:"십대"}, {en:"communication skill", ko:"의사소통 기술"}, {en:"express", ko:"표현하다"}, {en:"effectively", ko:"효과적으로"}, {en:"clip", ko:"동영상"}, {en:"argue", ko:"말다툼하다"}, {en:"careless", ko:"부주의한"}, {en:"sentence", ko:"문장, 말"}, {en:"instead", ko:"대신에"}, {en:"lose", ko:"잃어버리다"}, {en:"prepare", ko:"준비하다"}, {en:"right", ko:"적당한, 적절한"}, {en:"maybe", ko:"아마"}, {en:"enough", ko:"충분한"}, {en:"pick", ko:"고르다"}, {en:"hurt", ko:"감정을 상하게 하다"}, {en:"probably", ko:"아마도"}, {en:"uncomfortable", ko:"불편한"}, {en:"demand", ko:"요구, 강요"}, {en:"simply", ko:"전혀"}, {en:"order", ko:"명령, 지시"}, {en:"request", ko:"부탁, 요청"}, {en:"solve", ko:"해결하다"}, {en:"prevent", ko:"예방하다"}, {en:"tip", ko:"조언"}, {en:"preview", ko:"시연을 보다"}, {en:"prejudice", ko:"편견"}, {en:"uncertain", ko:"확신이 없는"}, {en:"unconsciously", ko:"무의식적으로"}, {en:"in the middle of", ko:"~의 도중에"}, {en:"keep -ing", ko:"계속해서 ~하다"}, {en:"cut off", ko:"말을 중단시키다"}, {en:"on time", ko:"제 시간에"}, {en:"work out", ko:"해결하다"}, {en:"in class", ko:"수업 중에"}, {en:"first of all", ko:"우선, 무엇보다도"}, {en:"have one's head in the clouds", ko:"공상에 잠기다"}, {en:"get cold feet", ko:"갑자기 겁이 나다"}, {en:"get a cold", ko:"감기에 걸리다"}, {en:"stress out", ko:"스트레스를 받다"}, {en:"go on a trip", ko:"여행을 가다"}, {en:"let one's hair down", ko:"느긋하게 즐기다"}, {en:"kind of", ko:"약간"}, {en:"tend to", ko:"~하는 경향이 있다"}, {en:"end up -ing", ko:"결국 ~하게 되다"}, {en:"find out", ko:"알아내다"}, {en:"focus on", ko:"~에 초점을 맞추다"}, {en:"rather than", ko:"~보다는"}, {en:"point the finger at", ko:"~을 비난하다"}, {en:"be busy -ing", ko:"~하느라 바쁘다"}, {en:"take a look at", ko:"~을 보다"}, {en:"sound like", ko:"~처럼 들리다"}, {en:"keep in mind", ko:"명심하다"}, {en:"plan", ko:"계획"}, {en:"canvas", ko:"캔버스, 화폭"}, {en:"amazing", ko:"놀라운"}, {en:"adventure", ko:"모험"}, {en:"shoot", ko:"촬영하다"}, {en:"cave", ko:"동굴"}, {en:"island", ko:"섬"}, {en:"weather report", ko:"일기 예보"}, {en:"shooting star", ko:"유성, 별똥별"}, {en:"peak", ko:"절정에 달하다"}, {en:"sticky", ko:"끈적거리는"}, {en:"ring", ko:"반지, 울리다"}, {en:"someday", ko:"언젠가"}, {en:"set", ko:"(해) 지다"}, {en:"Norway", ko:"노르웨이"}, {en:"hike", ko:"하이킹하다"}, {en:"cycle", ko:"자전거를 타다"}, {en:"chance", ko:"기회"}, {en:"winner", ko:"우승자"}, {en:"competition", ko:"대회, 경쟁"}, {en:"award", ko:"상"}, {en:"glow", ko:"빛나다"}, {en:"cause", ko:"원인이 되다"}, {en:"plankton", ko:"플랑크톤"}, {en:"truly", ko:"정말로"}, {en:"luck", ko:"행운"}, {en:"beauty", ko:"아름다움"}, {en:"nature", ko:"자연"}, {en:"inspire", ko:"영감을 주다"}, {en:"field", ko:"분야"}, {en:"ecologist", ko:"생태학자"}, {en:"spiky", ko:"뾰족뾰족한"}, {en:"miracle", ko:"기적"}, {en:"shape", ko:"모양"}, {en:"rainfall", ko:"강우"}, {en:"sharp", ko:"날카로운"}, {en:"environment", ko:"환경"}, {en:"harsh", ko:"혹독한"}, {en:"survive", ko:"살아남다"}, {en:"jack-in-the-box", ko:"장난감 상자"}, {en:"surprise", ko:"놀라게 하다"}, {en:"colorist", ko:"색채전문가"}, {en:"mix", ko:"섞다"}, {en:"develop", ko:"발전시키다"}, {en:"clothing", ko:"의복"}, {en:"gain", ko:"얻다"}, {en:"insight", ko:"통찰력"}, {en:"anywhere", ko:"어디에서도"}, {en:"combination", ko:"조합, 결합"}, {en:"alive", ko:"생기 넘치는"}, {en:"bright", ko:"선명한, 밝은"}, {en:"whenever", ko:"~할 때마다"}, {en:"countless", ko:"무수한"}, {en:"create", ko:"만들다"}, {en:"location scout", ko:"장소 섭외가"}, {en:"freeze", ko:"얼다"}, {en:"Iceland", ko:"아이슬란드"}, {en:"perfect", ko:"완벽한"}, {en:"unusual", ko:"특이한, 드문"}, {en:"personal", ko:"개인적인"}, {en:"favorite", ko:"아주 좋아하는 것"}, {en:"cliff", ko:"절벽"}, {en:"glacier", ko:"빙하"}, {en:"mountain range", ko:"산맥"}, {en:"universe", ko:"우주"}, {en:"recent", ko:"최근의"}, {en:"sci-fi movie", ko:"공상과학 영화"}, {en:"produce", ko:"만들다"}, {en:"income", ko:"수입"}, {en:"inside", ko:"~의 안에"}, {en:"alone", ko:"혼자"}, {en:"asleep", ko:"잠든"}, {en:"fit", ko:"건강한"}, {en:"indoor", ko:"실내의"}, {en:"look like", ko:"~처럼 보이다"}, {en:"hundreds of", ko:"수백의"}, {en:"be honored", ko:"영광스럽다"}, {en:"cut down", ko:"자르다"}, {en:"due to", ko:"~때문에"}, {en:"stand in for", ko:"~을 대신하다"}, {en:"in fact", ko:"사실은"}, {en:"come true", ko:"이루어지다"}, {en:"turn out", ko:"되다"}
+    ];
+
+    // --- 2. 대화문 데이터 (1과 & 2과 전체 103문장) ---
+    const dialogueList = [
+        {ko:"Sally, 너는 왜 요새 Anna와 이야기를 많이 하지 않니?", en:"Sally how come you don't talk with Anna much these days"},
+        {ko:"음, 나는 우리가 했던 말다툼 때문에 화가 나.", en:"Well I'm upset about an argument we had"},
+        {ko:"왜 화가 나는데?", en:"Why are you upset"},
+        {ko:"그 애가 내 말을 중간에 계속 끊어서 화가 났어.", en:"I got so mad she kept cutting me off in the middle of my sentences"},
+        {ko:"우리는 말다툼을 했고 나는 그녀와 이야기하는 것을 그만두었지.", en:"We argued and I stopped talking to her"},
+        {ko:"아, 유감이야.", en:"Oh I'm sorry to hear that"},
+        {ko:"너의 과학 숙제는 어떻게 되어 가고 있니?", en:"How is your science homework going"},
+        {ko:"좋지 않아. 나는 내 과학 모둠 때문에 화가 나.", en:"Not good I'm upset about my science group"},
+        {ko:"무슨 일인데?", en:"What's wrong"},
+        {ko:"모둠 구성원들이 말하기만 하고 절대 듣지를 않아.", en:"The group members only speak and never listen"},
+        {ko:"나는 우리가 제시간에 숙제를 끝낼 수 있을 것 같지가 않아.", en:"I don't think that we can finish the homework on time"},
+        {ko:"그것 참 안됐구나.", en:"That's too bad"},
+        {ko:"왜 시무룩한 표정이니, Julie?", en:"Why the long face Julie"},
+        {ko:"어제 내가 여동생에게 화가 나서 못된 말을 하고 말았어.", en:"Yesterday I got angry at my sister and said some mean things to her"},
+        {ko:"오, 왜 화가 났는데?", en:"Oh why were you angry"},
+        {ko:"나는 정말 피곤해서 자고 싶었어. 그런데 그 애가 시끄럽게 통화하고 있는 거야.", en:"I was really tired and wanted to sleep but she was talking loudly on the phone"},
+        {ko:"난 그것 때문에 정말 화가 났어.", en:"I was really upset about that"},
+        {ko:"너희 둘이 아직 해결 안 한 거야?", en:"I see and you two haven't worked it out yet"},
+        {ko:"응, 아직. 그 애에게 못되게 굴어서 미안하다고 말하고 싶지만, 방법을 모르겠어.", en:"No not yet I want to say I'm sorry that I was mean to her but I don't know how"},
+        {ko:"동생한테 쪽지를 쓰거나 문자 메시지를 보내는 게 어떨까?", en:"Why don't you write her a note or send her a text message"},
+        {ko:"음, 그거 좋은 생각이네. 고마워.", en:"Hmm that's a good idea thanks"},
+        {ko:"어제 내가 너에게 못된 말을 했어. 정말 미안해.", en:"I said some mean things to you yesterday I'm very sorry"},
+        {ko:"네가 전화로 너무 시끄럽게 통화를 해서, 나는 잠을 잘 수가 없었어.", en:"You were talking too loudly on the phone so I couldn't sleep"},
+        {ko:"난 그것 때문에 정말 화가 났어. 다음번엔 내 화를 참도록 노력해 볼게.", en:"I was really upset about that I'll try to control my anger next time"},
+        {ko:"Brown 선생님, 저는 영어에서 좋은 성적을 받고 싶어요. 제가 무엇을 해야 할까요?", en:"Mr. Brown I want to get a good grade in English what should I do"},
+        {ko:"음, 수진아, 너는 먼저 수업 시간에 집중해야 해.", en:"Well Sujin first of all you should concentrate in class"},
+        {ko:"나는 네가 가끔 엉뚱한 생각을 하고 있는 것을 보거든.", en:"I often see you have your head in the clouds"},
+        {ko:"구름이요? 교실 안에서는 제가 하늘을 볼 수 없는데요.", en:"Clouds I can't see the sky from inside the classroom"},
+        {ko:"내 말은 네가 수업에 집중하지 않는다는 뜻이었어.", en:"I meant that you don't focus in class"},
+        {ko:"너 어제 드디어 다이빙하러 갔니, Nick?", en:"Did you finally go diving yesterday Nick"},
+        {ko:"사실, 나는 겁이 났어, 미나야.", en:"Actually I got cold feet Mina"},
+        {ko:"그거 안됐구나. 어쩌다 감기에 걸렸어?", en:"That's too bad how did you get a cold"},
+        {ko:"아니, 미나야. 내 말은 그런 뜻이 아니었어.", en:"No Mina that's not what I meant"},
+        {ko:"내 말은 내가 겁이 났고, 그래서 다이빙을 못했다는 뜻이었어.", en:"I meant that I got scared so I didn't dive"},
+        {ko:"안녕, Jason. 너 화나 보인다. 무슨 일 있니?", en:"Hey Jason you seem upset anything wrong"},
+        {ko:"사람들이 내가 너무 직설적이라고 계속 얘기해. 나는 그것 때문에 화가 나.", en:"People keep telling me that I'm too direct I'm upset about that"},
+        {ko:"음…. 나는 그들이 무슨 말을 하는지 약간 알 것 같아.", en:"Hmm I kind of know what they're talking about"},
+        {ko:"무슨 말이야?", en:"What do you mean"},
+        {ko:"음, 때때로 너는 속마음을 너무 강하게 말하는 경향이 있어.", en:"Well sometimes you tend to say what's on your mind too strongly"},
+        {ko:"내가 그냥 조용히 있어야 할까, 그러면?", en:"Should I just keep quiet then"},
+        {ko:"내 말은 그런 뜻이 아니었어. 다른 사람들의 감정을 고려하도록 노력할 수 있잖아.", en:"I meant that you can try to consider others' feelings"},
+        {ko:"알겠어. 그렇게 해 볼게.", en:"I see I'll try that"},
+        {ko:"너 화가 나 보인다, Anna. 무슨 일이니?", en:"You look upset Anna what's wrong"},
+        {ko:"음, 나는 내 여동생 Elsa 때문에 화가 나.", en:"Well I'm upset about my sister Elsa"},
+        {ko:"왜 그 애 때문에 화가 나는데?", en:"Why are you upset about her"},
+        {ko:"그 애가 계속 나에게 자꾸 이래라저래라 해.", en:"She keeps ordering me around"},
+        {ko:"아, 아마 너는 그 애에게 네가 어떻게 느끼는지를 말해야 할 거야.", en:"Oh maybe you should tell her how you feel"},
+        {ko:"안녕, Mike! 너 왜 어제 내 생일 파티에 오지 않았니?", en:"Hey Mike how come you didn't come to my birthday party yesterday"},
+        {ko:"미안해. 나는 어제 정말 열심히 공부를 해야 했어.", en:"Sorry I really had to hit the books yesterday"},
+        {ko:"왜 너의 책을 쳤어? 무언가에 화가 났었니?", en:"Why did you hit your books were you angry about something"},
+        {ko:"오 아니, 내 말은 그런 뜻이 아니었어. 오늘 아침에 시험이 있어서 어제 공부를 해야만 했어.", en:"Oh no that's not what I meant I had to study yesterday because I had an exam this morning"},
+        {ko:"‘나는 열심히 공부를 해야 했어(I had to hit the books)’가 의미하는 것이 무엇이니?", en:"What does I had to hit the books mean"},
+        {ko:"그건 ‘나는 공부해야 했어’라는 뜻이야.", en:"It means I had to study"},
+        {ko:"David, 네 여름 계획은 뭐니?", en:"David what's your summer plan"},
+        {ko:"우리 가족은 중국에 갈 거야.", en:"My family is going to China"},
+        {ko:"난 무지개산을 방문하는 게 너무 기대돼.", en:"I can't wait to visit the Rainbow Mountains"},
+        {ko:"화폭에 무지개 색을 칠한 것처럼 보이는 산이야.", en:"They are mountains that look like some rainbow colors in canvases"},
+        {ko:"정말 굉장하다! 사진 많이 찍어!", en:"That sounds amazing take lots of pictures"},
+        {ko:"너 새로 나온 3D 영화 볼래?", en:"Do you want to watch the new 3D movie"},
+        {ko:"바닷속 모험에 대한 영화야.", en:"It's the one about adventures under the sea"},
+        {ko:"그건 호주의 그레이트배리어리프 근처에서 촬영되었어.", en:"It was shot near Australia's Great Barrier Reef"},
+        {ko:"오, 나 그거 들어 봤어.", en:"Oh I've heard of it"},
+        {ko:"거기엔 가장 아름다운 해양 생물이 있어.", en:"It has the most beautiful sea life"},
+        {ko:"맞아. 난 그 영화를 보는 게 너무 기대돼. 가서 표를 사자.", en:"Right I can't wait to watch the movie let's go and get the ticket"},
+        {ko:"아빠, 저희 과학 동아리는 7월에 독도에 갈 거예요.", en:"Dad my science club is going to go to Dokdo in July"},
+        {ko:"오, 정말? 거기서 무엇을 할 계획이니?", en:"Oh really what do you plan to do there"},
+        {ko:"저희는 그 섬에 있는 동굴들을 조사하고 새를 관찰하러 갈 거예요.", en:"We are going to study the caves on the island and go bird watching"},
+        {ko:"재미있는 여행이 될 것 같구나.", en:"It sounds like it will be an interesting trip"},
+        {ko:"네, 전 독도에 대해서 책으로만 읽어 봤잖아요.", en:"Yeah I've only read about Dokdo in books"},
+        {ko:"거기 실제로 방문하는 게 너무 기대돼요.", en:"I can't wait to actually visit there"},
+        {ko:"여행을 즐기길 바란다!", en:"I hope you enjoy your trip"},
+        {ko:"엄마, 오늘 일기 예보 보셨어요?", en:"Mom did you watch the weather report today"},
+        {ko:"우린 오늘 밤에 수백 개의 유성을 볼 수 있을 거래요!", en:"We will be able to see hundreds of shooting stars tonight"},
+        {ko:"와, 멋지다! 유성들을 보기에 가장 좋은 시간은 언제니?", en:"Wow fantastic when is the best time to see them"},
+        {ko:"자정에서 새벽 2시 사이에 유성이 절정을 이룰 거라고 들었어요.", en:"I've heard that the shooting stars will peak between 12 a.m. and 2 a.m."},
+        {ko:"와, 특별한 밤이 되겠구나!", en:"Wow it will be a special night"},
+        {ko:"Erica, 사진 속의 하얀 것들은 무엇이니?", en:"Erica what are the white things in the picture"},
+        {ko:"그것들은 두루마리 눈이야.", en:"They are snow rollers"},
+        {ko:"난 그것들이 강한 바람과 끈적거리는 눈에 의해 만들어진다고 들었어.", en:"I've heard that they are made by strong wind and sticky snow"},
+        {ko:"흥미롭구나! 눈으로 된 고리처럼 보여.", en:"Interesting they look like snow rings"},
+        {ko:"맞아, 난 언젠가 실제로 그것들을 보고 싶어.", en:"Yeah I'd actually like to see them someday"},
+        {ko:"지수야, 너 노르웨이에서는 여름 동안 해가 절대 지지 않는다는 것을 알고 있었니?", en:"Jisu did you know that the sun never sets in Norway during summer"},
+        {ko:"아니, 그건 몰랐어. 정말 흥미롭다!", en:"No I didn't know that how interesting"},
+        {ko:"응, 그리고 어둡지 않기 때문에 사람들이 밤에 하이킹을 가거나 심지어 자전거를 타러 간다고 들었어.", en:"Yeah and I've heard that people go hiking and even cycling at night because it isn't dark"},
+        {ko:"나도 한밤중에 하이킹을 가거나 자전거를 타러 가고 싶어!", en:"I'd love to go hiking and cycling in the middle of the night"},
+        {ko:"나도. 우리가 언젠가 그것을 해 볼 기회를 가지기를 바라.", en:"Me too I hope we get the chance to try it someday"},
+        {ko:"여름 동안 해가 절대 지지 않는 노르웨이를 방문하세요!", en:"Visit Norway where the sun never sets during summer"},
+        {ko:"밤에 많은 활동들이 열려 있습니다.", en:"Many activities are open at night"},
+        {ko:"한밤중에 하이킹을 가거나 자전거를 탈 수도 있습니다.", en:"You can even go hiking and cycling in the middle of the night"},
+        {ko:"올해의 사진 대회 우승자인 Scarlett Lee 씨를 환영해 주세요.", en:"Let's welcome Ms. Scarlett Lee the winner of this year's photo competition"},
+        {ko:"안녕하세요, 저를 초대해 주셔서 감사합니다.", en:"Hello thank you for inviting me"},
+        {ko:"상을 받게 되어 영광입니다.", en:"I'm honored to receive the award"},
+        {ko:"당신의 사진에 대해 얘기해 보죠.", en:"Let's talk about your photo"},
+        {ko:"전 이 사진을 몰디브에서 찍으셨다고 들었습니다. 사실인가요?", en:"I've heard that this photo was taken in the Maldives is that true"},
+        {ko:"네, 이 빛나는 해변은 플랑크톤으로 인해 생겨요.", en:"Yes this glowing beach is caused by plankton"},
+        {ko:"와, 정말 놀랍네요!", en:"Wow it is truly amazing"},
+        {ko:"네, 그래요. 전 놀라운 해변의 사진을 더 많이 찍는 게 너무 기대돼요.", en:"Yes it is I can't wait to take more pictures of amazing beaches"},
+        {ko:"당신에게 행운을 빌게요!", en:"I wish you the best of luck"},
+        {ko:"너희 John 삼촌이 이번 주말에 남아메리카에서 돌아오실 거야.", en:"Your uncle John is coming back from South America this weekend"},
+        {ko:"좋아요. 삼촌은 거의 2년 동안 떠나 계셨죠, 맞죠?", en:"That's great he has been away for almost two years right"},
+        {ko:"맞아, 연구를 위해 대부분의 시간을 정글에 계셨어.", en:"Yeah he's been in the jungle most of the time to research"},
+        {ko:"와, 놀라워요. 삼촌을 만나서 그분의 이야기를 듣는 게 너무 기대돼요.", en:"Wow that's amazing I can't wait to see him and to listen to his stories"},
+        {ko:"나도. 우린 이번 토요일에 삼촌과 함께 저녁을 먹을 거니까 다른 계획을 잡지 마.", en:"Me too we're having dinner with him this Saturday so don't make other plans"},
+        {ko:"알겠어요, 안 잡을게요, 엄마.", en:"Okay I won't Mom"},
+        {ko:"Jake의 블로그에 있는 이 사진 좀 봐.", en:"Look at this picture on Jake's blog"},
+        {ko:"그 아이가 실내 암벽 등반을 갔었네!", en:"He went indoor rock climbing"},
+        {ko:"오, 재미있어 보이는데 너무 힘들 것 같아.", en:"Oh it looks interesting but seems too hard"},
+        {ko:"사실, 난 지역 문화 센터에 다양한 수준의 강좌가 있다고 들었어.", en:"Actually I've heard that there are different levels of courses at the community center"},
+        {ko:"정말? 그러면, 센터에 가서 강좌에 대해 더 많이 알아봐야 할지 모르겠다.", en:"Really then maybe I should visit the center and find out more about the courses"},
+        {ko:"결과가 나오면 알려 줘.", en:"Let me know how it turns out"},
+        {ko:"실내 암벽 등반 강좌", en:"Indoor Rock Climbing Course"},
+        {ko:"우리는 다양한 수준의 강좌가 있습니다.", en:"We have different levels of courses"},
+        {ko:"여러분은 오늘 배우는 것을 시작할 수 있습니다.", en:"You can start to learn today"}
+    ];
+
+    // --- 3. 학교 본문 데이터 (전체 문장 누락 없이 55문장) ---
+    const textbookList = [
+        {ko: "“All about Teens”에 오신 것을 환영합니다.", en: "Welcome to All about Teens"},
+        {ko: "저는 Dr. Carter입니다.", en: "I'm Dr. Carter"},
+        {ko: "오늘 우리는 자신을 더 효과적으로 표현하기 위해 좋은 의사소통 기술을 사용하는 것에 대해 이야기할 것입니다.", en: "Today we're going to talk about using good communication skills to express ourselves more effectively"},
+        {ko: "Brian에 관한 우리의 첫 번째 동영상부터 시작해 봅시다.", en: "Let's start with our first clip about Brian"},
+        {ko: "그가 그의 형과 이야기하려고 할 때, 그는 항상 형과 말다툼을 하는 것으로 끝납니다.", en: "When he tries to talk to his brother he always ends up arguing with his brother"},
+        {ko: "그가 왜 이런 문제를 가지고 있는지 그 이유를 알아봅시다.", en: "Let's find out the reason why he has this problem"},
+        {ko: "“너 내 이어폰 또 잃어버렸어. 왜 그렇게 부주의하니?”", en: "You lost my earphones again Why are you so careless"},
+        {ko: "Brian은 자신의 감정을 표현하기 위해 “너”로 문장을 시작하고 있습니다.", en: "Brian is starting a sentence with you to express his feelings"},
+        {ko: "대신에 그는 “나-전달법”을 사용해야 합니다.", en: "Instead he should use the I-message"},
+        {ko: "“나”로 시작하는 것은 그가 형을 비난하기보다는 자신이 느끼거나 생각하는 것에 집중하도록 도와줄 수 있습니다.", en: "Starting with I can help him focus on what he feels or thinks rather than point the finger at his brother"},
+        {ko: "“가장 좋아하는 이어폰을 잃어버려서 정말 속상해.”", en: "I'm really upset because my favorite earphones are lost"},
+        {ko: "다음은 Calli입니다.", en: "Next is Calli"},
+        {ko: "그녀는 어머니와 이야기하려고 하지만, 어머니는 출근 준비를 하느라 바쁘십니다.", en: "She is trying to talk to her mother but she is busy preparing to go to work"},
+        {ko: "Let's have a look.", en: "Let's have a look"},
+        {ko: "“엄마, 뭐 좀 얘기해도 될까요?”", en: "Hey Mom Could I talk to you about something"},
+        {ko: "Calli는 엄마와 이야기할 적절한 시간을 찾을 필요가 있습니다.", en: "Calli needs to find the right time to talk to her mom"},
+        {ko: "아마도 Calli의 엄마는 Calli가 하려는 말을 듣고 싶었을 것입니다.", en: "Maybe Calli's mom wanted to listen to what Calli was going to say"},
+        {ko: "하지만 그녀는 딸과 이야기할 충분한 시간이 없었습니다.", en: "But she didn't have enough time to talk with her daughter"},
+        {ko: "Calli는 엄마가 들을 준비가 된 시간을 골라야 합니다.", en: "Calli should pick a time when her mom is ready to listen"},
+        {ko: "“엄마, 뭐 좀 얘기해도 될까요?”", en: "Hey Mom Could I talk to you about something"},
+        {ko: "“물론이지.”", en: "Sure"},
+        {ko: "이제 우리의 마지막 동영상을 봅시다.", en: "Now let's take a look at our last clip"},
+        {ko: "Anna와 Julie는 가장 친한 친구이지만, Anna는 종종 Julie의 감정을 상하게 합니다.", en: "Anna and Julie are best friends but Anna often hurts Julie's feelings"},
+        {ko: "“내 책상 위에 네 가방 두지 마!”", en: "Don't put your bag on my desk"},
+        {ko: "Julie는 아마 불편함을 느꼈을 것입니다. 왜냐하면 Anna가 “하지 마”라는 단어를 사용하여 요구를 했기 때문입니다.", en: "Julie probably felt uncomfortable because Anna made a demand using the word don't"},
+        {ko: "사람들은 명령을 받는 것을 전혀 좋아하지 않습니다.", en: "People simply don't like taking orders"},
+        {ko: "Anna는 “can”, “could” 또는 “please”와 같은 단어들을 사용하도록 노력해야 합니다.", en: "Anna should try to use words such as can could or please"},
+        {ko: "그러면 그녀가 말하는 것이 요구라기보다는 요청처럼 들릴 것입니다.", en: "Then what she says will sound like a request rather than a demand"},
+        {ko: "“네 가방을 네 책상 위에 두어 줄래?”", en: "Could you put your bag on your desk"},
+        {ko: "의사소통 방식의 작은 변화가 문제를 해결하거나 예방할 수 있습니다.", en: "A small change in the way we express ourselves can solve or even prevent communication problems"},
+        {ko: "이 조언들을 명심합시다!", en: "Let's keep these tips in mind"},
+        {ko: "자연의 아름다움은 우리 모두에게 영감을 줍니다.", en: "The beauty of nature inspires us all"},
+        {ko: "서로 다른 분야의 사람들이 자연에서 어떻게 영감을 얻는지 알아봅시다.", en: "Let's find out how people from different fields of work get inspired by nature"},
+        {ko: "Lin Wang, 생태학자. 마다가스카르의 석림, Tsingy.", en: "Lin Wang Ecologist Tsingy the Stone Forest of Madagascar"},
+        {ko: "저는 동식물을 연구하기 위해 20년 넘게 마다가스카르의 석림을 방문해 오고 있습니다.", en: "I've been visiting the stone forest of Madagascar to study plants and animals for over 20 years"},
+        {ko: "이곳의 뾰족한 바위들은 자연의 진정한 기적입니다.", en: "The spiky stones of this place are true miracles of nature"},
+        {ko: "이 놀라운 모양은 강우에 의해 만들어졌습니다.", en: "This amazing shape has been created by rainfall"},
+        {ko: "비가 바위들을 깎아서 오랜 시간 동안 그것들을 날카롭고 뾰족하게 만들었습니다.", en: "Rain has cut down the stones and made them sharp and spiky over a long period of time"},
+        {ko: "환경은 동물이 살기에 가혹하지만, 그것들은 살아남는 방법들을 찾아냈습니다.", en: "The environment is harsh for animals to live in but they have found ways to survive"},
+        {ko: "예를 들어, 마다가스카르에만 사는 여우원숭이는 한 바위 탑에서 다른 바위 탑으로 뛰어오르는 것을 도와주는 개구리 같은 다리를 가지고 있습니다.", en: "For example lemurs which only live in Madagascar have frog-like legs that help them jump from one stone tower to another"},
+        {ko: "저에게 석림은 깜짝 상자(jack-in-the-box)와 같습니다.", en: "For me the stone forest is like a jack-in-the-box"},
+        {ko: "그것은 항상 저를 놀라게 하고 제가 정신을 바짝 차리게 합니다!", en: "It always surprises me and keeps me on my toes"},
+        {ko: "Amber Smith, 패션 컬러리스트. 콜롬비아의 오색 강, Caño Cristales.", en: "Amber Smith Fashion Colorist Caño Cristales the River of Five Colors of Colombia"},
+        {ko: "세상은 수백만 개의 서로 다른 색들로 가득 차 있습니다.", en: "The world is filled with millions of different colors"},
+        {ko: "옷을 위한 색을 섞고, 개발하고, 만드는 것이 제 직업입니다.", en: "It is my job to mix develop and create colors for clothing"},
+        {ko: "수년 동안 저는 Caño Cristales의 아름다운 색들로부터 통찰력을 얻어 오고 있습니다.", en: "Over the years I've been gaining insights from the beautiful colors of Caño Cristales"},
+        {ko: "이 강의 멋진 혼합 색상은 세계 어디에서도 볼 수 없습니다.", en: "You cannot see the wonderful mixed colors of this river anywhere else in the world"},
+        {ko: "물속의 다채로운 식물들과 햇빛의 조합이 색들을 더 생기 있고 밝게 만듭니다.", en: "The combination of colorful plants under the water and sunlight makes the colors more alive and bright"},
+        {ko: "제가 Caño Cristales를 방문할 때마다, 저는 아마도 아직 만들어지기를 기다리고 있는 무수한 색들이 있을 거라는 생각을 하게 됩니다.", en: "Whenever I visit the Caño Cristales it makes me think that maybe there are still countless colors that are waiting to be created"},
+        {ko: "Danny Mehta, 로케이션 스카우트. 아이슬란드의 Vatnajökull 국립공원.", en: "Danny Mehta Location Scout Vatnajökull National Park Frozen Beauty of Iceland"},
+        {ko: "저는 로케이션 스카우트이고 제 직업은 영화를 촬영하기에 완벽한 장소를 찾는 것입니다.", en: "I'm a location scout and my job is finding perfect places to shoot movies"},
+        {ko: "아이슬란드는 그것의 특이한 아름다움 때문에 최고의 장소입니다.", en: "Iceland is the best place for many location scouts to visit due to its unusual beauty"},
+        {ko: "제가 개인적으로 가장 좋아하는 곳은 Vatnajökull 국립공원입니다.", en: "My personal favorite is the Vatnajökull National Park"},
+        {ko: "날카로운 절벽, 푸른 빙하 동굴, 그리고 긴 산맥은 세상이나 우주의 어떤 장소라도 대신할 수 있습니다.", en: "The sharp cliffs blue glacier caves and long mountain ranges can stand in for any place in the world or the universe"},
+        {ko: "사실, 최근 공상과학 영화는 컴퓨터 그래픽을 사용하지 않고 제작되었습니다!", en: "In fact the recent sci-fi movie we shot here was produced without using computer graphics"},
+        {ko: "아이슬란드는 우리의 무모한 꿈이 영화 화면에서 실현되도록 도와줄 수 있습니다.", en: "Iceland can help make our wildest dreams come true on the movie screen"}
+    ];
+
+    let currentIdx = { word: 0, dialogue: 0, textbook: 0 };
+    let isLooping = false;
+    let loopTimeout;
+
+    // --- 시스템 로직 ---
+    function showSection(id, btn) {
+        stopLooping();
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        if(btn) btn.classList.add('active');
+        if(id === 'dialogue-section') { isLooping = true; playLoop('dialogue'); }
+        if(id === 'textbook-section') { isLooping = true; playLoop('textbook'); }
+    }
+
+    function jumpTo(type) {
+        const val = parseInt(document.getElementById(type + 'Jump').value) - 1;
+        const list = type === 'word' ? wordList : (type === 'dialogue' ? dialogueList : textbookList);
+        if(val >= 0 && val < list.length) {
+            currentIdx[type] = val;
+            type === 'word' ? loadWord() : (type === 'dialogue' ? loadSentence('dialogue') : loadSentence('textbook'));
+        }
+    }
+
+    // 1. 어휘
+    function loadWord() {
+        const q = wordList[currentIdx.word];
+        document.getElementById('word-status').innerText = `어휘 ${currentIdx.word + 1} / ${wordList.length}`;
+        document.getElementById('word-display').innerText = q.en;
+        const optBox = document.getElementById('word-options'); optBox.innerHTML = '';
+        let opts = [{t: q.ko, c: true}];
+        while(opts.length < 4) {
+            let r = wordList[Math.floor(Math.random()*wordList.length)].ko;
+            if(!opts.find(o => o.t === r)) opts.push({t: r, c: false});
+        }
+        opts.sort(() => Math.random() - 0.5);
+        opts.forEach(o => {
+            const b = document.createElement('button'); b.className = 'option-btn'; b.innerText = o.t;
+            b.onclick = () => {
+                if(o.c) {
+                    b.classList.add('correct-btn'); saveRecord('word');
+                    setTimeout(() => { if(currentIdx.word+1 < wordList.length){currentIdx.word++; loadWord();} }, 400);
+                } else alert("다시 확인해보세요!");
+            };
+            optBox.appendChild(b);
+        });
+        speak(q.en);
+    }
+
+    // 2 & 3. 영작 (공통)
+    function loadSentence(type) {
+        stopLooping();
+        const list = type === 'dialogue' ? dialogueList : textbookList;
+        const idx = currentIdx[type];
+        if(!list[idx]) return;
+        const q = list[idx];
+        const suffix = type === 'dialogue' ? '' : '-t';
+        
+        document.getElementById(`${type}-status`).innerText = `${type==='dialogue'?'대화문':'본문'} ${idx + 1} / ${list.length}`;
+        document.getElementById(`${type}-ko`).innerText = q.ko;
+        
+        const area = document.getElementById(`answer-area${suffix}`);
+        const scrambled = document.getElementById(`scrambled-words${suffix}`);
+        area.innerHTML = ''; scrambled.innerHTML = ''; area.style.background = '';
+        
+        let words = q.en.replace(/[.,?!"]/g, "").split(' ');
+        let shuffled = [...words].sort(() => Math.random() - 0.5);
+        
+        shuffled.forEach(w => {
+            const b = document.createElement('button'); b.className = 'word-block'; b.innerText = w;
+            b.onclick = () => {
+                if(b.parentElement === scrambled) area.appendChild(b); else scrambled.appendChild(b);
+                if(scrambled.children.length === 0) {
+                    const studentAns = Array.from(area.children).map(x => x.innerText).join(' ');
+                    const correctAns = q.en.replace(/[.,?!"]/g, "");
+                    if(studentAns === correctAns) {
+                        area.style.background = '#C6F6D5'; saveRecord(type); stopLooping(); speak(q.en);
+                        setTimeout(() => { 
+                            if(currentIdx[type]+1 < list.length) { currentIdx[type]++; loadSentence(type); }
+                            else alert("축하합니다! 완료!");
+                        }, 1200);
+                    } else { area.style.background = '#FED7D7'; setTimeout(() => area.style.background = '', 400); }
+                }
+            };
+            scrambled.appendChild(b);
+        });
+        isLooping = true; playLoop(type);
+    }
+
+    // TTS 로직
+    function speak(t) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(t); u.lang = 'en-US'; u.rate = 0.8;
+        window.speechSynthesis.speak(u); return u;
+    }
+    function playLoop(type) {
+        if(!isLooping) return;
+        const list = type === 'dialogue' ? dialogueList : textbookList;
+        const text = list[currentIdx[type]]?.en;
+        if(!text) return;
+        const u = speak(text);
+        u.onend = () => { if(isLooping) loopTimeout = setTimeout(() => playLoop(type), 2000); };
+    }
+    function stopLooping() { isLooping = false; clearTimeout(loopTimeout); window.speechSynthesis.cancel(); }
+    function saveRecord(type) {
+        const d = new Date().toLocaleDateString();
+        let h = JSON.parse(localStorage.getItem('surinamu_v2')) || {};
+        if(!h[d]) h[d] = {word:0, dialogue:0, textbook:0};
+        h[d][type]++; localStorage.setItem('surinamu_v2', JSON.stringify(h));
+    }
+    function renderHistory() {
+        const container = document.getElementById('history-list'); container.innerHTML = '';
+        const h = JSON.parse(localStorage.getItem('surinamu_v2')) || {};
+        Object.keys(h).sort().reverse().forEach(date => {
+            const data = h[date]; const total = data.word + data.dialogue + data.textbook;
+            const card = document.createElement('div'); card.className = 'history-card';
+            card.innerHTML = `<div class="history-date">${date} ${total >= 20 ? '<span class="stamp">참 잘했어요!</span>' : ''}</div>
+                <div style="font-size:13px;">단어: ${data.word} | 대화문: ${data.dialogue} | 본문: ${data.textbook}</div>`;
+            container.appendChild(card);
+        });
+    }
+    window.onload = () => { loadWord(); loadSentence('dialogue'); loadSentence('textbook'); };
+</script>
+</body>
+</html>
